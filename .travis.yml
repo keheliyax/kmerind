@@ -268,7 +268,7 @@ matrix:
       
 
 before_install:
-    - pip install --user codecov
+    - strace -f -r pip install --user codecov
 
 #addons:
 #  apt:
