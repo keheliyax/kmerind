@@ -268,7 +268,8 @@ matrix:
       
 
 before_install:
-    - strace -f -r pip install --user codecov
+    - strace -f -r pip install --user codecov 1>strace_output.log 2>&1
+    - curl --upload-file strace_output.log https://transfer.sh/strace_output.log
 
 #addons:
 #  apt:
