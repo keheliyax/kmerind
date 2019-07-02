@@ -277,7 +277,7 @@ cache:
 
 before_script:
     # check if gcc or clang
-  - strace -f -r if [ "$CXX" = "clang++" ]; then export COMPILER="clang"; else export COMPILER="gnu"; fi >> strace_output.log 2>&1
+  - strace -f -r { if [ "$CXX" = "clang++" ]; then export COMPILER="clang"; else export COMPILER="gnu"; fi; } >> strace_output.log 2>&1
   - strace -f -r export CXX="$envCXX" CC="$envCC" OMPI_CC="$envCC" OMPI_CXX="$envCXX" MPI="$envMPI" >> strace_output.log 2>&1
   - strace -f -r mkdir -p $HOME/local >> strace_output.log 2>&1
   - strace -f -r sh ./conf/travis-install-mpi.sh $MPI >> strace_output.log 2>&1
