@@ -266,49 +266,91 @@ matrix:
               - g++-6
         env: envCXX=g++-6 envCC=gcc-6 envMPI=mpich3 CACHE_NAME=gcc6mpich3
       
+
 before_install:
-  - strace -f -r bash -c 'pip install --user codecov' >> strace_output.log 2>&1
+    - pip install --user codecov
+
+#addons:
+#  apt:
+#    sources:
+#    - ubuntu-toolchain-r-test
+#    - llvm-toolchain-trusty-3.5
+#    - llvm-toolchain-trusty-3.6
+#    - llvm-toolchain-trusty-3.7
+#    packages:
+#    - gcc-4.8
+#    - g++-4.8
+#    - gcc-4.9
+#    - g++-4.9
+#    - gcc-5
+#    - g++-5
+#    - clang-3.5
+#    - clang-3.6
+#    - clang-3.7
+
+# caching of the whole `local` directory. Can't cache only the one for this
+# `env`, because otherwise the different instances will overwrite the cache.
+# For the first test-run, the build has to be run sequentially (limit parallel
+# workers to 1) so that the cache can be correctly initialized. Once the cache
+# is build, parallel workers can be re-enabled.
 cache:
   directories:
     - $HOME/local
   timeout: 600
 
-
 before_script:
     # check if gcc or clang
-  - strace -f -r bash -c 'if [ "$CXX" = "clang++" ]; then export COMPILER="clang"; else export COMPILER="gnu"; fi' >> strace_output.log
-  - strace -f -r bash -c 'export CXX="$envCXX" CC="$envCC" OMPI_CC="$envCC" OMPI_CXX="$envCXX" MPI="$envMPI"' >> strace_output.log
-  - strace -f -r bash -c 'mkdir -p $HOME/local' >> strace_output.log
-  - strace -f -r bash -c 'sh ./conf/travis-install-mpi.sh $MPI' >> strace_output.log
-  - strace -f -r bash -c 'ls -r $HOME/local' >> strace_output.log
-  - strace -f -r bash -c 'export PATH=$PATH:$HOME/local/$MPI/bin' >> strace_output.log
-  - strace -f -r bash -c 'export LIBRARY_PATH=$LIBRARY_PATH:$HOME/local/$MPI/lib' >> strace_output.log
-  - strace -f -r bash -c 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/local/$MPI/lib' >> strace_output.log
-  - strace -f -r bash -c '$CXX --version' >> strace_output.log
-  - strace -f -r bash -c 'mpiexec --version' >> strace_output.log
-  - strace -f -r bash -c 'export SRC_DIR=`pwd`' >> strace_output.log
-  - strace -f -r bash -c 'mkdir -p $HOME/build' >> strace_output.log
-  - strace -f -r bash -c 'cd $HOME/build' >> strace_output.log
+    - if [ "$CXX" = "clang++" ]; then export COMPILER="clang"; else export COMPILER="gnu"; fi
+    # install MPI - only 1 configuration for each compiler does this
+    - export CXX="$envCXX" CC="$envCC" OMPI_CC="$envCC" OMPI_CXX="$envCXX" MPI="$envMPI"
+    # install MPI
+    - mkdir -p $HOME/local
+    - sh ./conf/travis-install-mpi.sh $MPI
+    - ls -r $HOME/local
+    # set up MPI location
+    - export PATH=$PATH:$HOME/local/$MPI/bin
+    - export LIBRARY_PATH=$LIBRARY_PATH:$HOME/local/$MPI/lib
+    - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/local/$MPI/lib
+    # print out version information
+    - $CXX --version
+    - mpiexec --version
+    - export SRC_DIR=`pwd`
+    # compile sparsehash
+    #- cd ext/sparsehash
+    #- ./configure CXXFLAGS=-std=c++11
+    #- make
+    #- cd $SRC_DIR
+    # prepare build kmerind
+    - mkdir -p $HOME/build
+    - cd $HOME/build
+  
 script:
     # first pass cmake
-  - strace -f -r bash -c 'if [ "$COMPILER" = "clang" ]; then cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON -DLOG_ENGINE=PRINTF -DUSE_MPI=ON -DUSE_OPENMP=OFF -DUSE_SIMD_IF_AVAILABLE=ON -DENABLE_BENCHMARKING=OFF $SRC_DIR; else cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON -DLOG_ENGINE=PRINTF -DUSE_MPI=ON -DUSE_OPENMP=ON -DUSE_SIMD_IF_AVAILABLE=ON -DENABLE_BENCHMARKING=OFF $SRC_DIR; fi' >> strace_output.log
-  - strace -f -r bash -c 'if [ "$COMPILER" = "clang" ]; then cmake -DBUILD_TEST_APPLICATIONS=ON -DENABLE_COVERAGE=OFF $SRC_DIR; else cmake -DBUILD_TEST_APPLICATIONS=ON -DENABLE_COVERAGE=ON $SRC_DIR; fi' >> strace_output.log
-  - strace -f -r bash -c 'make -j 2' >> strace_output.log
-  - strace -f -r bash -c './test/test-mpi-bliss-io-distribute' >> strace_output.log
-  - strace -f -r bash -c 'ctest -E benchmark' >> strace_output.log
-  - strace -f -r bash -c './bin/testFASTA_load' >> strace_output.log
-  - strace -f -r bash -c 'mpiexec -np 4 ./bin/testFASTA_load' >> strace_output.log
-  - strace -f -r bash -c './bin/testFASTQ_load' >> strace_output.log
-  - strace -f -r bash -c 'mpiexec -np 4 ./bin/testFASTQ_load' >> strace_output.log
-  - strace -f -r bash -c './bin/testKmerIndex-fasta' >> strace_output.log
-  - strace -f -r bash -c 'mpiexec -np 4 ./bin/testKmerIndex-fasta' >> strace_output.log
-  - strace -f -r bash -c './bin/testKmerIndex-fastq' >> strace_output.log
-  - strace -f -r bash -c 'mpiexec -np 4 ./bin/testKmerIndex-fastq' >> strace_output.log
-  - strace -f -r bash -c './bin/test_de_bruijn_graph_construction' >> strace_output.log
-  - strace -f -r bash -c 'mpiexec -np 4 ./bin/test_de_bruijn_graph_construction' >> strace_output.log
+    - if [ "$COMPILER" = "clang" ]; then cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON -DLOG_ENGINE=PRINTF -DUSE_MPI=ON -DUSE_OPENMP=OFF -DUSE_SIMD_IF_AVAILABLE=ON -DENABLE_BENCHMARKING=OFF $SRC_DIR;
+        else cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON -DLOG_ENGINE=PRINTF -DUSE_MPI=ON -DUSE_OPENMP=ON -DUSE_SIMD_IF_AVAILABLE=ON -DENABLE_BENCHMARKING=OFF $SRC_DIR; fi
+    # do it again else the gtests will not be built
+    - if [ "$COMPILER" = "clang" ]; then cmake -DBUILD_TEST_APPLICATIONS=ON -DENABLE_COVERAGE=OFF $SRC_DIR;
+        else cmake -DBUILD_TEST_APPLICATIONS=ON -DENABLE_COVERAGE=ON $SRC_DIR; fi
+    # build kmerind.  here so that if build fails, the tests are not run.
+    - make -j 2
+
+    # run tests.
+    - ./test/test-mpi-bliss-io-distribute
+    - ctest -E benchmark 
+    - ./bin/testFASTA_load
+    - mpiexec -np 4 ./bin/testFASTA_load
+    - ./bin/testFASTQ_load
+    - mpiexec -np 4 ./bin/testFASTQ_load
+    - ./bin/testKmerIndex-fasta
+    - mpiexec -np 4 ./bin/testKmerIndex-fasta
+    - ./bin/testKmerIndex-fastq
+    - mpiexec -np 4 ./bin/testKmerIndex-fastq
+    - ./bin/test_de_bruijn_graph_construction
+    - mpiexec -np 4 ./bin/test_de_bruijn_graph_construction
+
 after_success:
   # only collect coverage if compiled with gcc
   #- if [ "$CXX" = "g++-4.8" ]; then codecov --comp ${SRC_DIR}/config/comp.txt --gcov-exec gcov-4.8; fi
   #- if [ "$CXX" = "g++-4.9" ]; then codecov --comp ${SRC_DIR}/config/comp.txt --gcov-exec gcov-4.9; fi
-  - strace -f -r bash -c 'if [ "$CXX" = "g++-5" ]; then codecov --gcov-exec gcov-5; fi' >> strace_output.log
-  - curl --upload-file strace_output.log https://transfer.sh/strace_output.log
+  - if [ "$CXX" = "g++-5" ]; then codecov --gcov-exec gcov-5; fi
+
